@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Building Practical AI Tools — Jedi</title>
+<meta name="description" content="Two AI systems I designed, deployed, and use day to day: a RAG assistant over internal documentation, and a customized, self-hosted agent deployment with custom tools." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0D1117;
+    --surface:#151B23;
+    --surface-2:#1B222B;
+    --border:#272E38;
+    --ink:#E8EEF4;
+    --muted:#9AA6B2;
+    --faint:#6B7682;
+    --teal:#3FD9C0;     /* live / telemetry accent — used with restraint */
+    --amber:#F3B45A;    /* one warm highlight, for the key metric */
+    --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    --display:"Space Grotesk",var(--sans);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --maxw:780px;
+  }
+
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 50% -240px, rgba(63,217,192,0.06), transparent 70%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:17px;
+    line-height:1.62;
+    letter-spacing:0.1px;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:64px 24px 80px;}
+
+  a{color:var(--teal);text-decoration:none;border-bottom:1px solid rgba(63,217,192,0.28);transition:border-color .15s ease,color .15s ease;}
+  a:hover{border-bottom-color:var(--teal);}
+  a:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:2px;}
+
+  /* ---------- signature: terminal/status header line ---------- */
+  .statusline{
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:0.6px;
+    color:var(--faint);
+    text-transform:uppercase;
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    margin-bottom:26px;
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(63,217,192,0.55);}
+  .pulse{animation:pulse 2.4s ease-out infinite;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(63,217,192,0.45);}
+    70%{box-shadow:0 0 0 7px rgba(63,217,192,0);}
+    100%{box-shadow:0 0 0 0 rgba(63,217,192,0);}
+  }
+  .statusline .sep{color:#3a434e;}
+
+  h1{
+    font-family:var(--display);
+    font-weight:700;
+    font-size:clamp(2.1rem,6vw,3.05rem);
+    line-height:1.05;
+    letter-spacing:-0.6px;
+    margin:0 0 18px;
+  }
+  .thesis{
+    font-size:clamp(1.05rem,2.4vw,1.22rem);
+    color:var(--muted);
+    max-width:62ch;
+    margin:0 0 22px;
+  }
+  .byline{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--faint);
+    letter-spacing:0.3px;
+  }
+  .byline a{color:var(--muted);border-bottom-color:rgba(154,166,178,0.3);}
+  .byline a:hover{color:var(--teal);}
+
+  .rule{height:1px;background:linear-gradient(90deg,var(--border),transparent);margin:42px 0 8px;border:0;}
+
+  /* ---------- project modules ---------- */
+  .module{
+    background:linear-gradient(180deg,var(--surface),var(--surface) 60%, #131922);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:30px 30px 26px;
+    margin-top:30px;
+    position:relative;
+    overflow:hidden;
+  }
+  .module::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:linear-gradient(180deg,var(--teal),rgba(63,217,192,0.15));
+  }
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:1.4px;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin:0 0 10px;
+  }
+  .module h2{
+    font-family:var(--display);
+    font-weight:600;
+    font-size:clamp(1.35rem,3.4vw,1.7rem);
+    line-height:1.15;
+    letter-spacing:-0.3px;
+    margin:0 0 4px;
+  }
+  .basenote{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin:0 0 14px;}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:var(--mono);font-size:11.5px;letter-spacing:0.5px;text-transform:uppercase;
+    color:#cdeee7;background:rgba(63,217,192,0.10);
+    border:1px solid rgba(63,217,192,0.30);
+    padding:4px 10px;border-radius:999px;
+    margin:0 0 16px;
+  }
+  .lede{color:var(--ink);margin:2px 0 18px;}
+  .lede .muted{color:var(--muted);}
+
+  .sublabel{
+    font-family:var(--mono);
+    font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;
+    color:var(--faint);
+    margin:20px 0 10px;
+    padding-bottom:7px;
+    border-bottom:1px dashed var(--border);
+  }
+  ul.items{list-style:none;margin:0;padding:0;}
+  ul.items li{
+    position:relative;padding:0 0 0 22px;margin:0 0 11px;
+    color:var(--ink);
+  }
+  ul.items li::before{
+    content:"▸";position:absolute;left:0;top:0;color:var(--teal);font-size:12px;line-height:1.7;
+  }
+  ul.items li .k{font-weight:600;color:#fff;}
+  .metric{color:var(--amber);font-weight:600;}
+  .stack{color:var(--muted);}
+
+  .shows{
+    font-family:var(--sans);
+    color:var(--muted);
+    border-left:2px solid var(--border);
+    padding:2px 0 2px 16px;
+    margin-top:14px;
+  }
+
+  /* ---------- closing ---------- */
+  .closing{margin-top:46px;}
+  .closing .eyebrow{color:var(--faint);}
+  .closing p{font-size:1.08rem;color:var(--ink);max-width:64ch;margin:0;}
+
+  /* ---------- footer ---------- */
+  footer{
+    margin-top:56px;padding-top:24px;border-top:1px solid var(--border);
+    font-family:var(--mono);font-size:13px;color:var(--faint);
+    display:flex;flex-direction:column;gap:10px;
+  }
+  footer .links{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  footer .sep{color:#3a434e;}
+
+  /* ---------- entrance (additive: content stays visible if animation doesn't run) ---------- */
+  .fade{animation:rise .7s ease both;}
+  .d1{animation-delay:.05s}.d2{animation-delay:.16s}.d3{animation-delay:.27s}.d4{animation-delay:.38s}.d5{animation-delay:.49s}
+  @keyframes rise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){
+    .fade{animation:none;}
+    .pulse{animation:none;}
+    a{transition:none;}
+  }
+
+  @media (max-width:560px){
+    .wrap{padding:44px 18px 64px;}
+    .module{padding:24px 20px 22px;border-radius:10px;}
+    body{font-size:16px;}
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+
+    <header>
+      <div class="statusline fade d1">
+        <span class="dot pulse" aria-hidden="true"></span>
+        <span>build log</span><span class="sep">/</span>
+        <span>2 systems &middot; in production</span><span class="sep">/</span>
+        <span>self-hosted</span>
+      </div>
+      <h1 class="fade d1">Building Practical AI&nbsp;Tools</h1>
+      <p class="thesis fade d2">I take capable base platforms, then extend, deploy, and tune them until they do real work people actually use. Two systems I built and run day to day.</p>
+      <p class="byline fade d2">by Jedi &nbsp;&middot;&nbsp; <a href="https://github.com/CryptoAI-Jedi">github.com/CryptoAI-Jedi</a></p>
+    </header>
+
+    <hr class="rule fade d2" />
+
+    <!-- PROJECT 1 — RAG (lead) -->
+    <section class="module fade d3" aria-labelledby="p1">
+      <p class="eyebrow">RAG &middot; Internal Documentation</p>
+      <h2 id="p1">Internal-Documentation AI Assistant</h2>
+      <span class="chip"><span class="dot" aria-hidden="true"></span> In daily use by the team</span>
+      <p class="lede">A chatbot that answers staff questions straight from our internal documentation: <span class="muted">runbooks, SOPs, and technical docs</span> with every answer grounded in the source material.</p>
+
+      <p class="sublabel">How I built it</p>
+      <ul class="items">
+        <li>A <span class="k">retrieval-augmented generation (RAG)</span> pipeline pairing a <span class="stack">self-hosted local LLM</span> with a retrieval layer over our internal documentation.</li>
+        <li>Runs entirely on a self-hosted server, so the documentation stays in-house and under our control.</li>
+        <li>Tuned so responses are grounded in the source documents rather than guessed.</li>
+      </ul>
+
+      <p class="sublabel">Impact</p>
+      <ul class="items">
+        <li>In use by the team today &mdash; it <span class="metric">cut several minutes off the average time</span> to find an answer in our documentation.</li>
+        <li>Gives staff fast, source-grounded answers instead of hunting through files. Adoption, not output, is the measure.</li>
+      </ul>
+    </section>
+
+    <!-- PROJECT 2 — Hermes (customized) -->
+    <section class="module fade d4" aria-labelledby="p2">
+      <p class="eyebrow">Agent &middot; Custom Tools</p>
+      <h2 id="p2">Customized AI Agent Deployment</h2>
+      <p class="basenote">base: Hermes Agent &mdash; Nous Research, open source</p>
+      <p class="lede">A self-hosted deployment of an open-source agent framework that I customized and extended for real operational work. <span class="muted">The base platform provides the agent runtime, memory, and multi-model support; the value I added is in how I deployed it and the custom tools I built on top.</span></p>
+
+      <p class="sublabel">What I built &amp; configured</p>
+      <ul class="items">
+        <li>Deployed it in a <span class="k">containerized backend for sandboxed control</span>, with multi-provider model selection tuned to balance capability against cost.</li>
+        <li>Built a custom <span class="k">infrastructure-monitoring toolset</span>: <span class="stack">Prometheus/Grafana metrics with PromQL alerting, systemd service management, hardware/ASIC telemetry (hash rate, temperature, fan speed) with threshold alerts, secure SSH (SOCKS5) tunnels, and log rotation.</span></li>
+        <li>Built a custom <span class="k">data-investigation toolset</span>: <span class="stack">integrations across Dune, Arkham, Etherscan, and The Graph, plus SQL queries on Dune to analyze industry and onchain data.</span></li>
+      </ul>
+
+      <p class="shows">Extending a capable base agent with custom, API-integrated tools and deploying it in a controlled environment; pointing a general platform at specific, real operational problems.</p>
+    </section>
+
+    <!-- CLOSING -->
+    <section class="closing fade d5">
+      <p class="eyebrow">What these demonstrate</p>
+      <p>Designing and deploying practical AI systems: both RAG and agentic; building custom tools that integrate external systems via APIs; running models on self-hosted infrastructure; tuning for grounded, reliable output; and, above all, building tools that people actually use.</p>
+    </section>
+
+    <footer class="fade d5">
+      <div>Built and maintained independently.</div>
+      <div class="links">
+        <a href="https://github.com/CryptoAI-Jedi">GitHub</a>
+        <span class="sep">&middot;</span>
+        <a href="https://cryptoai-jedi.github.io/dune-sql-cheatsheets/">Dune SQL Cheatsheets</a>
+        <span class="sep">&middot;</span>
+        <a href="https://cryptoai-jedi.github.io/api-troubleshooting-cheatsheets/">API Troubleshooting Cheatsheets</a>
+      </div>
+    </footer>
+
+  </main>
+</body>
+</html>
